@@ -1,0 +1,4 @@
+../Core/Src/station.c:3:9:crc_8	4
+../Core/Src/station.c:18:6:defaultStrToStruct	1
+../Core/Src/station.c:33:6:decodeStrToStruct	18
+../Core/Src/station.c:72:5:strServerToStation	10
