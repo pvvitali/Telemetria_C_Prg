@@ -20,6 +20,7 @@
 #include "main.h"
 #include "adc.h"
 #include "dma.h"
+#include "iwdg.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -64,10 +65,12 @@
 uint32_t  timer1 = 0;
 uint32_t  timer2 = 0;
 uint32_t  timer3 = 0;
+uint32_t  timer4 = 0;
 
 ATC_HandleTypeDef gsm;
 int resp = 0;
 int resp2 = 0;
+int flag_sim800_error = 0;
 int flagCommand2 = 0;
 char command2[15] = {0,};
 char strStation[15] = {0,};
@@ -86,9 +89,12 @@ struct telemetriaData telData;
 char telString[130] = {0,};
 char tempString[15] = {0,};
 
-uint8_t rx_buff_rs485[50] = {0,};
-uint8_t temp_buff_rs485[50] = {0,};
+uint8_t rx_buff_fromStation[50] = {0,};
+uint8_t temp_buff_fromStation[50] = {0,};
 volatile uint8_t flagReceiveFromStation = 0;
+
+//bluetooth module
+uint8_t rx_buff_fromBluetooth[50] = {0,};
 
 //flag adc
 volatile uint8_t flagAdcDmaComplit = 0;
@@ -96,6 +102,16 @@ volatile uint16_t adc[3] = {0,}; //3 results
 int u_bat = 0;
 int u_5v = 0;
 int temperature = 0;
+
+//220
+volatile uint8_t flagPower220 = 0;
+volatile int u220 =0;
+int startAdcGetU220();
+
+
+void sim800_power_on();
+void sim800_power_off();
+int reset_sim800_connect_to_server();
 
 /* USER CODE END PV */
 
@@ -115,17 +131,26 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
 	if(huart->Instance == UART5){
 		  uint16_t i;
 		  for( i = 0; i < Size; i++){
-			  temp_buff_rs485[i] = rx_buff_rs485[i];
+			  temp_buff_fromStation[i] = rx_buff_fromStation[i];
 		  }
-		  temp_buff_rs485[i] = '\n';
+		  temp_buff_fromStation[i] = '\n';
 		  i++;
-		  temp_buff_rs485[i] = '\0';
+		  temp_buff_fromStation[i] = '\0';
 		  flagReceiveFromStation = 1;
 
 		  //delete
 		  //printf( (char *)temp_buff_rs485 );
 
-		  HAL_UARTEx_ReceiveToIdle_IT(&huart5, rx_buff_rs485, 50);
+		  HAL_UARTEx_ReceiveToIdle_IT(&huart5, rx_buff_fromStation, 50);
+	}
+
+	// from Bluetooth
+	if(huart->Instance == USART2){
+
+		  //delete
+		  printf( (char *)rx_buff_fromBluetooth );
+
+		  HAL_UARTEx_ReceiveToIdle_IT(&huart2, rx_buff_fromBluetooth, 50);
 	}
 }
 
@@ -135,6 +160,15 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
         flagAdcDmaComplit = 1;
     }
 }
+
+//void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+//{
+//        if(htim->Instance == TIM2) //check if the interrupt comes from TIM1
+//        {
+//                HAL_ResumeTick();
+//                HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+//        }
+//}
 
 
 
@@ -180,7 +214,23 @@ int main(void)
   MX_SPI1_Init();
   MX_UART4_Init();
   MX_USB_OTG_FS_PCD_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
+
+
+//------ Off all device ---------------------------------------------------------------
+
+	printf( "\n =====> Start! \n\n" );
+
+
+  	while(1){
+  		u220 = startAdcGetU220();
+  		if (u220 > 40) {
+  			break;
+  		}
+  		HAL_Delay(500);
+  		HAL_PWR_EnterSTANDBYMode();
+  	}
 
 
 //-------------------------------------------------------------------------------------
@@ -200,14 +250,6 @@ int main(void)
     //On Uart CPU
     HAL_GPIO_WritePin(ON_UART_CPU_GPIO_Port, ON_UART_CPU_Pin, GPIO_PIN_SET);
 
-    //Sim800 PWRKEY = hight
-    HAL_GPIO_WritePin(GPIOD, GATE_PWRKEY_Pin, GPIO_PIN_RESET);
-    //Sim800 PowerOn = On
-    HAL_GPIO_WritePin(GPIOD, GATE_V_SIM_Pin, GPIO_PIN_SET);
-    HAL_Delay(700);
-    HAL_GPIO_WritePin(GPIOD, GATE_PWRKEY_Pin, GPIO_PIN_SET);
-    HAL_Delay(1200);
-    HAL_GPIO_WritePin(GPIOD, GATE_PWRKEY_Pin, GPIO_PIN_RESET);
 
 
   ////  WIFI on
@@ -215,48 +257,23 @@ int main(void)
 //-----------------------------------------------------------------------------------------
 
 
-	HAL_UARTEx_ReceiveToIdle_IT(&huart5, rx_buff_rs485, 50);
+	HAL_UARTEx_ReceiveToIdle_IT(&huart5, rx_buff_fromStation, 50);
+
+
 
 
     //gsm modem
     ATC_Init(&gsm, &huart1, 512, "GSM");
     ATC_SetEvents(&gsm, events);
-    for(int i = 0; i < 1000; i++) {
-    	HAL_Delay(100);
-    	resp = ATC_SendReceive(&gsm, "AT\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    	if( resp == 1 ) break;
+
+    for(int i = 0; i < 10; i++) {
+    	if( reset_sim800_connect_to_server() == 1 ){
+    		printf( "reset_sim800_connect_to_server(pos0) == 1  => connection Ok!\n" );
+    		break;
+    	} else {
+    		printf( "reset_sim800_connect_to_server(pos0) != 1  => connection Err!\n" );
+    	}
     }
-    HAL_Delay(20000);
-    resp = ATC_SendReceive(&gsm, "AT\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // echo off
-    resp = ATC_SendReceive(&gsm, "ATE0\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // off all calls
-    resp = ATC_SendReceive(&gsm, "AT+GSMBUSY=1\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // sms not in TE
-    resp = ATC_SendReceive(&gsm, "AT+CNMI=0,0\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // sms text mode
-    resp = ATC_SendReceive(&gsm, "AT+CMGF=1\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // signal quality
-    resp = ATC_SendReceive(&gsm, "AT+CSQ\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // phone activity status
-    resp = ATC_SendReceive(&gsm, "AT+CPAS\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-
-
-    // deactivate gprs context
-    resp = ATC_SendReceive(&gsm, "AT+CIPSHUT\r\n", 100, NULL, 5000, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // single ip conection
-    resp = ATC_SendReceive(&gsm, "AT+CIPMUX=0\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // attach gprs
-    resp = ATC_SendReceive(&gsm, "AT+CGATT=1\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // apn
-    resp = ATC_SendReceive(&gsm, "AT+CSTT=\"wap.orange.md\"\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // bring wireless connection
-    resp = ATC_SendReceive(&gsm, "AT+CIICR\r\n", 100, NULL, 5000, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-    // get local ip address => resp==0 no OK
-    resp = ATC_SendReceive(&gsm, "AT+CIFSR\r\n", 100, NULL, 50, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
-
-    resp = ATC_SendReceive(&gsm, "AT+CIPSTART=\"TCP\",\"scz.pge.md\",\"16992\"\r\n", 100, NULL, 5000, 2, "\r\nCONNECT OK\r\n", "\r\nERROR\r\n");
-
 
   /* USER CODE END 2 */
 
@@ -297,14 +314,14 @@ int main(void)
 
 
 
-		if((HAL_GetTick() - timer2) > 20000) { //  20sec
+		if((HAL_GetTick() - timer2) > 30000) { //  30sec
 			//
 			// query data from station
 			HAL_UART_Transmit(&huart5, (uint8_t *)"$?;", 3, 200);
 			HAL_Delay(200);
 
 			if( flagReceiveFromStation ) {
-				decodeStrToStruct(&telData, (char *)temp_buff_rs485);
+				decodeStrToStruct(&telData, (char *)temp_buff_fromStation);
 				flagReceiveFromStation = 0;
 			} else{
 				defaultStrToStruct(&telData);
@@ -330,7 +347,7 @@ int main(void)
 				HAL_ADC_Stop_DMA(&hadc1);
 
 				u_bat = (int)(((adc[0] * 6.6) / 409.5) + 0.5) ;	// batery
-				u_5v = (int)(((adc[1] * 6.6) / 4095.0) + 0.5) ;	// 5 volt
+				u_5v = (int)(((adc[1] * 6.6) / 409.5) + 0.5) ;	// 5 volt
 				temperature = (int)((((adc[2] * 3.3) / 4095) - 0.76) / 0.0025 + 25.0) ;	// temperature
 				//
 				sprintf(tempString, "%i", u_bat);
@@ -338,9 +355,9 @@ int main(void)
 				//
 				//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				//todo del:
-				strcpy( telData.u_bat, "42");
+				//strcpy( telData.u_bat, "42");
 				//
-				if( u_5v > 4) sprintf(tempString, "%s", "1");
+				if( u_5v > 40) sprintf(tempString, "%s", "1");
 				else sprintf(tempString, "%s", "0");
 				strcpy( telData.u220, tempString);
 				//
@@ -386,14 +403,47 @@ int main(void)
 
 			resp2 = ATC_SendReceive(&gsm, telString, 100, NULL, 2000, 2, "\r\nSEND OK\r\n", "\r\nERROR\r\n");
 
+			if ( (resp == 1) && (resp2 == 1) ){
+				flag_sim800_error = 0;
+			} else {
+				flag_sim800_error = 1;
+			}
 
 			timer2 = HAL_GetTick();
 		}
 
-	  //printf("Hello from swo! {%i} \n", count++);
 
-      //CDC_Transmit_FS(TxBuffer, TxBufferLen);
-	  //HAL_UART_Transmit(&huart3, str, 6, 1000);
+		if ( flag_sim800_error == 1 ){
+			flag_sim800_error = 0;
+
+		    for(int i = 0; i < 10; i++) {
+		    	if( reset_sim800_connect_to_server() == 1 ){
+		    		printf( "reset_sim800_connect_to_server(pos1) == 1  => connection Ok!\n" );
+		    		break;
+		    	} else {
+		    		printf( "reset_sim800_connect_to_server(pos1) != 1  => connection Err!\n" );
+		    	}
+		    }
+		}
+
+
+//		if((HAL_GetTick() - timer4) > 43200000) { //  12hours
+//
+//		    for(int i = 0; i < 10; i++) {
+//		    	if( reset_sim800_connect_to_server() == 1 ){
+//		    		printf( "reset_sim800_connect_to_server(pos2) == 1  => connection Ok!\n" );
+//		    		break;
+//		    	} else {
+//		    		printf( "reset_sim800_connect_to_server(pos2) != 1  => connection Err!\n" );
+//		    	}
+//		    }
+//			timer4 = HAL_GetTick();
+//		}
+
+
+		HAL_IWDG_Refresh(&hiwdg); //reset watchdog
+
+
   }
   /* USER CODE END 3 */
 }
@@ -415,8 +465,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
@@ -455,6 +506,121 @@ int _write(int file, char *ptr, int len)
   }
   return len;
 }
+
+
+void sim800_power_on() {
+
+    //Sim800 PWRKEY = hight
+    HAL_GPIO_WritePin(GPIOD, GATE_PWRKEY_Pin, GPIO_PIN_RESET);
+    //Sim800 PowerOn = On
+    HAL_GPIO_WritePin(GPIOD, GATE_V_SIM_Pin, GPIO_PIN_SET);
+    HAL_Delay(700);
+    HAL_GPIO_WritePin(GPIOD, GATE_PWRKEY_Pin, GPIO_PIN_SET);
+    HAL_Delay(1200);
+    HAL_GPIO_WritePin(GPIOD, GATE_PWRKEY_Pin, GPIO_PIN_RESET);
+}
+
+
+void sim800_power_off() {
+    //Sim800 PowerOn = Off
+    HAL_GPIO_WritePin(GPIOD, GATE_V_SIM_Pin, GPIO_PIN_RESET);
+}
+
+
+int reset_sim800_connect_to_server() {
+
+	int resp = 0;
+
+	HAL_IWDG_Refresh(&hiwdg); //reset wdg
+
+    sim800_power_off();
+    HAL_Delay(5000);
+    sim800_power_on();
+    HAL_Delay(5000);
+
+    HAL_IWDG_Refresh(&hiwdg); //reset wdg
+
+    for(int i = 0; i < 1000; i++) {
+    	HAL_Delay(100);
+    	HAL_IWDG_Refresh(&hiwdg); //reset wdg
+    	resp = ATC_SendReceive(&gsm, "AT\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    	if( resp == 1 ) break;
+    }
+
+    HAL_IWDG_Refresh(&hiwdg); //reset wdg
+
+    HAL_Delay(25000);
+
+    HAL_IWDG_Refresh(&hiwdg); //reset wdg
+
+    resp = ATC_SendReceive(&gsm, "AT\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // echo off
+    resp = ATC_SendReceive(&gsm, "ATE0\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // off all calls
+    resp = ATC_SendReceive(&gsm, "AT+GSMBUSY=1\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // sms not in TE
+    resp = ATC_SendReceive(&gsm, "AT+CNMI=0,0\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // sms text mode
+    resp = ATC_SendReceive(&gsm, "AT+CMGF=1\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // signal quality
+    resp = ATC_SendReceive(&gsm, "AT+CSQ\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // phone activity status
+    resp = ATC_SendReceive(&gsm, "AT+CPAS\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+
+
+    // deactivate gprs context
+    resp = ATC_SendReceive(&gsm, "AT+CIPSHUT\r\n", 100, NULL, 5000, 2, "\r\nSHUT OK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // single ip conection
+    resp = ATC_SendReceive(&gsm, "AT+CIPMUX=0\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // attach gprs
+    resp = ATC_SendReceive(&gsm, "AT+CGATT=1\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // apn
+    resp = ATC_SendReceive(&gsm, "AT+CSTT=\"wap.orange.md\"\r\n", 100, NULL, 100, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // bring wireless connection
+    resp = ATC_SendReceive(&gsm, "AT+CIICR\r\n", 100, NULL, 5000, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    if (resp != 1) return resp;
+    // get local ip address => resp==0 no OK
+    resp = ATC_SendReceive(&gsm, "AT+CIFSR\r\n", 100, NULL, 1000, 2, "\r\nOK\r\n", "\r\nERROR\r\n");
+    //if (resp != 1) return resp;
+
+    resp = ATC_SendReceive(&gsm, "AT+CIPSTART=\"TCP\",\"scz.pge.md\",\"16992\"\r\n", 100, NULL, 5000, 2, "\r\nCONNECT OK\r\n", "\r\nERROR\r\n");
+
+    HAL_IWDG_Refresh(&hiwdg); //reset wdg
+
+    return resp;
+}
+
+int startAdcGetU220() {
+	// u_bat; 220v; temperature (run adc)
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc, 3); // run ADC
+	HAL_Delay(1);
+	if( flagAdcDmaComplit ) {
+
+		flagAdcDmaComplit = 0;
+
+		HAL_ADC_Stop_DMA(&hadc1);
+
+		u_5v = (int)(((adc[1] * 6.6) / 409.5) + 0.5) ;	// 5 volt
+
+		return u_5v;
+	} else{
+		return -1;
+	}
+}
+
+
+
 /* USER CODE END 4 */
 
 /**

@@ -60,7 +60,7 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, W55_SCSN_Pin|USB_ON_OFF_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(ON_ETHERNET_GPIO_Port, ON_ETHERNET_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(ON_ETHERNET_GPIO_Port, ON_ETHERNET_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(ON_UART_CPU_GPIO_Port, ON_UART_CPU_Pin, GPIO_PIN_RESET);

@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2024 STMicroelectronics.
+  * Copyright (c) 2025 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -32,7 +32,7 @@
 #define ATC_RTOS_THREADX                     3
 
 /**
-	MiddleWare name : NimaLTD.I-CUBE-ATC.4.2.1
+	MiddleWare name : NimaLTD.I-CUBE-ATC.4.2.2
 	MiddleWare fileName : NimaLTD.I-CUBE-ATC_conf.h
 */
 /*---------- ATC_DEBUG  -----------*/
