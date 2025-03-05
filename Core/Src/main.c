@@ -106,6 +106,7 @@ int temperature = 0;
 //220
 volatile uint8_t flagPower220 = 0;
 volatile int u220 =0;
+volatile int count_u220 =0;
 int startAdcGetU220();
 
 
@@ -357,8 +358,14 @@ int main(void)
 				//todo del:
 				//strcpy( telData.u_bat, "42");
 				//
-				if( u_5v > 40) sprintf(tempString, "%s", "1");
-				else sprintf(tempString, "%s", "0");
+				if( u_5v > 40){
+					sprintf(tempString, "%s", "1");
+					count_u220 = 0;
+				}
+				else{
+					sprintf(tempString, "%s", "0");
+					count_u220++;
+				}
 				strcpy( telData.u220, tempString);
 				//
 				sprintf(tempString, "%+i", temperature);
@@ -442,6 +449,12 @@ int main(void)
 
 
 		HAL_IWDG_Refresh(&hiwdg); //reset watchdog
+
+		if(count_u220 > 20){
+			count_u220 = 0;
+			// standby
+			HAL_PWR_EnterSTANDBYMode();
+		}
 
 
   }
