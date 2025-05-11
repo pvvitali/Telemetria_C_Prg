@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define ID "10000509"
+#define ID "10000221"
 
 uint8_t crc_8(char *str);
 

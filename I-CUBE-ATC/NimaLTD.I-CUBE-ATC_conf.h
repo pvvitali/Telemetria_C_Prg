@@ -36,7 +36,7 @@
 	MiddleWare fileName : NimaLTD.I-CUBE-ATC_conf.h
 */
 /*---------- ATC_DEBUG  -----------*/
-#define ATC_DEBUG      ATC_DEBUG_DISABLE
+#define ATC_DEBUG      ATC_DEBUG_ENABLE
 
 /*---------- ATC_RTOS  -----------*/
 #define ATC_RTOS      ATC_RTOS_DISABLE

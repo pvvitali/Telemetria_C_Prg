@@ -223,6 +223,14 @@ int main(void)
 
 	printf( "\n =====> Start! \n\n" );
 
+//
+//	printf( "press button \n\n" );
+//	HAL_Delay(5000);
+//	HAL_UARTEx_ReceiveToIdle_IT(&huart2, rx_buff_fromBluetooth, 50);
+//	HAL_Delay(100);
+//	HAL_UART_Transmit(&huart2, (uint8_t *)"AT+SLEEPEN=1\r\n", 14, 200);
+//	HAL_Delay(200);
+//	HAL_UART_Transmit(&huart2, (uint8_t *)"AT+TS=1\r\n", 9, 200);
 
   	while(1){
   		u220 = startAdcGetU220();
@@ -315,7 +323,7 @@ int main(void)
 
 
 
-		if((HAL_GetTick() - timer2) > 30000) { //  30sec
+		if((HAL_GetTick() - timer2) > 60000) { //  60sec
 			//
 			// query data from station
 			HAL_UART_Transmit(&huart5, (uint8_t *)"$?;", 3, 200);

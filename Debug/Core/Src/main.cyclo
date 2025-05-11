@@ -3,10 +3,10 @@
 ../Core/Src/main.c:127:6:HAL_UARTEx_RxEventCallback	5
 ../Core/Src/main.c:159:6:HAL_ADC_ConvCpltCallback	2
 ../Core/Src/main.c:182:5:main	21
-../Core/Src/main.c:468:6:SystemClock_Config	3
-../Core/Src/main.c:511:5:_write	2
-../Core/Src/main.c:524:6:sim800_power_on	1
-../Core/Src/main.c:537:6:sim800_power_off	1
-../Core/Src/main.c:543:5:reset_sim800_connect_to_server	15
-../Core/Src/main.c:617:5:startAdcGetU220	2
-../Core/Src/main.c:643:6:Error_Handler	1
+../Core/Src/main.c:476:6:SystemClock_Config	3
+../Core/Src/main.c:519:5:_write	2
+../Core/Src/main.c:532:6:sim800_power_on	1
+../Core/Src/main.c:545:6:sim800_power_off	1
+../Core/Src/main.c:551:5:reset_sim800_connect_to_server	15
+../Core/Src/main.c:625:5:startAdcGetU220	2
+../Core/Src/main.c:651:6:Error_Handler	1

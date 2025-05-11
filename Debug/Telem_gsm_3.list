@@ -39,11 +39,11 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  17 .debug_macro  000261bc  00000000  00000000  00029268  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_line   0001d4db  00000000  00000000  0004f424  2**0
+ 18 .debug_line   0001d4dd  00000000  00000000  0004f424  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_str    000deed4  00000000  00000000  0006c8ff  2**0
+ 19 .debug_str    000deed4  00000000  00000000  0006c901  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .comment      00000043  00000000  00000000  0014b7d3  2**0
+ 20 .comment      00000043  00000000  00000000  0014b7d5  2**0
                   CONTENTS, READONLY
  21 .debug_frame  0000665c  00000000  00000000  0014b818  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
@@ -2139,7 +2139,9 @@ int main(void)
 	printf( "\n =====> Start! \n\n" );
  80013ae:	4859      	ldr	r0, [pc, #356]	@ (8001514 <main+0x1a4>)
  80013b0:	f007 fa2a 	bl	8008808 <puts>
-
+//	HAL_UART_Transmit(&huart2, (uint8_t *)"AT+SLEEPEN=1\r\n", 14, 200);
+//	HAL_Delay(200);
+//	HAL_UART_Transmit(&huart2, (uint8_t *)"AT+TS=1\r\n", 9, 200);
 
   	while(1){
   		u220 = startAdcGetU220();
@@ -2332,13 +2334,13 @@ int main(void)
 
 
 
-		if((HAL_GetTick() - timer2) > 30000) { //  30sec
+		if((HAL_GetTick() - timer2) > 60000) { //  60sec
  80014d0:	f001 fd7c 	bl	8002fcc <HAL_GetTick>
  80014d4:	4602      	mov	r2, r0
  80014d6:	4b20      	ldr	r3, [pc, #128]	@ (8001558 <main+0x1e8>)
  80014d8:	681b      	ldr	r3, [r3, #0]
  80014da:	1ad3      	subs	r3, r2, r3
- 80014dc:	f247 5230 	movw	r2, #30000	@ 0x7530
+ 80014dc:	f64e 2260 	movw	r2, #60000	@ 0xea60
  80014e0:	4293      	cmp	r3, r2
  80014e2:	f240 8202 	bls.w	80018ea <main+0x57a>
 			//
